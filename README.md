@@ -145,11 +145,20 @@ with `S_k` the source's share of the total, `G_k` the source's own Gini, and
 1985; Stark, Taylor & Yitzhaki 1986). The identity `sum_k contrib_k = G` is
 returned as a check (`r(sumdev)`); in the test suite it holds to ~1e-16.
 
-Negative values are allowed throughout. A variable like net worth can be
-negative (the Gini may then exceed 1 — documented, not an error), and a source
-with a negative mean (enter debt as `-debt`) has negative `S_k`, `G_k`, `R_k`
-whose product is still its correct negative contribution. No absolute values
-are taken.
+**Negative values are allowed throughout — a property of the
+Lerman–Yitzhaki form.** Textbook constructions of the Gini (the Lorenz
+curve, or the mean of absolute differences divided by twice the mean)
+implicitly assume nonnegative values. The covariance form does not: it
+needs only each observation's deviation from the mean, $x_i - \mu$, and
+its fractional rank, $F(x_i)$, both of which are perfectly well defined
+for negative values. The only requirement is a positive mean, $\mu > 0$.
+So a variable like net worth, where indebted households are negative, is
+computed as-is — no truncation at zero, no dropping of negative
+observations. One consequence to be aware of: with negative values the
+Gini is no longer bounded by 1 and can exceed it (documented, not an
+error). Likewise a source with a negative mean (enter debt as `-debt`)
+has negative `S_k`, `G_k`, `R_k` whose product is still its correct
+negative contribution. No absolute values are taken anywhere.
 
 ### Ties and reproducibility
 

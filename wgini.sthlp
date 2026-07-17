@@ -50,8 +50,14 @@ the sources sum to {varname}; default {cmd:tol(1)}; {cmd:tol(0)} skips it{p_end}
 {cmd:wgini} computes the Gini coefficient of {varname} using the
 Lerman-Yitzhaki (1984, 1989) covariance form, which admits sampling or
 population weights directly. The variable may take negative values (for
-example net worth, assets minus debt); the Gini is then still defined and
-may exceed 1. This is a documented feature, not an error.
+example net worth, assets minus debt): unlike the Lorenz-curve or
+mean-absolute-difference constructions, which implicitly assume
+nonnegative values, the covariance form needs only each observation's
+deviation from the mean and its fractional rank, both defined for any
+real values — the only requirement is a positive mean. Negative
+observations are therefore used as-is, with no truncation at zero; the
+Gini is then no longer bounded by 1 and may exceed it. This is a
+documented feature, not an error.
 
 {pstd}
 With {opt source()}, when {varname} is the sum of {it:K} sources
