@@ -1,0 +1,14 @@
+v 3
+d wgini. Weighted Gini coefficient with Lerman-Yitzhaki source decomposition.
+d
+d Computes the Gini under sampling weights via the Lerman-Yitzhaki
+d covariance formula, decomposes it additively by source (share x own
+d Gini x Gini correlation) and by observation, handles negative values
+d and negative-mean sources, and assigns mid-ranks at ties so results
+d are exactly reproducible.
+d
+d Author: ChangHwan Kim, University of Kansas
+d Distribution-Date: 20260716
+d
+F wgini.ado
+F wgini.sthlp

@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use wgini in published work, please cite it as below."
+title: "wgini: Weighted Gini coefficient with Lerman-Yitzhaki source decomposition"
+type: software
+version: 1.0.0
+date-released: 2026-07-16
+url: "https://github.com/kchyhj/wgini"
+repository-code: "https://github.com/kchyhj/wgini"
+license-url: "https://polyformproject.org/licenses/noncommercial/1.0.0"
+authors:
+  - family-names: "Kim"
+    given-names: "ChangHwan"
+    orcid: "https://orcid.org/0000-0001-7149-1386"
+    affiliation: "University of Kansas"
+keywords:
+  - Stata
+  - Gini coefficient
+  - inequality
+  - decomposition
+  - Lerman-Yitzhaki
+references:
+  - type: article
+    title: "Income inequality effects by income source: A new approach and applications to the United States"
+    authors:
+      - family-names: "Lerman"
+        given-names: "Robert I."
+      - family-names: "Yitzhaki"
+        given-names: "Shlomo"
+    journal: "Review of Economics and Statistics"
+    volume: 67
+    issue: 1
+    year: 1985
+    start: 151
+    end: 156
