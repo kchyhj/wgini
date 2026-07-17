@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.0.0  16jul2026}{...}
+{* *! version 1.1.0  17jul2026}{...}
 {vieweralsosee "[R] inequality" "help inequality"}{...}
 {vieweralsosee "ineqdeco (if installed)" "help ineqdeco"}{...}
 {viewerjumpto "Syntax" "wgini##syntax"}{...}
@@ -30,6 +30,9 @@
 contributions of these sources; their sum must equal {varname}{p_end}
 {synopt:{opt gi(newvar)}}store the observation-level Gini contribution,
 which sums to the Gini{p_end}
+{synopt:{opt top(numlist)}}top-share diagnostics: for each {it:p}, the top
+{it:p}%'s population share, value share, Gini share, and the Gini without
+them{p_end}
 
 {syntab:Details}
 {synopt:{opt tol(#)}}tolerance, in the units of the data, for the check that
@@ -118,6 +121,13 @@ rounding; {cmd:tol(0)} skips the check, which is safe only when the sources
 sum to the total by construction.
 
 {phang}
+{opt top(numlist)} reports top-share diagnostics for each {it:p} in the
+list (0 < {it:p} < 100): the top group is defined by the weighted
+fractional mid-rank exceeding 1 {c 45} {it:p}/100. Results are returned in
+{cmd:r(top)} and as per-{it:p} scalars (see {help wgini##results:stored results});
+the scalars exist so that {helpb statsby} can collect them by subgroup.
+
+{phang}
 {opt noprint} suppresses the display. The stored results are produced either
 way.
 
@@ -183,6 +193,8 @@ decomposition but does not accept weights ({cmd:weights not allowed}), and
 {synopt:{cmd:r(mean)}}weighted mean of {varname}{p_end}
 {synopt:{cmd:r(sumdev)}}sum of contributions minus {cmd:r(gini)} (identity
 check); with {opt source()} only{p_end}
+{synopt:{cmd:r(actual_}{it:p}{cmd:)}, {cmd:r(vshare_}{it:p}{cmd:)}, {cmd:r(gshare_}{it:p}{cmd:)}, {cmd:r(gexcl_}{it:p}{cmd:)}}per-{it:p}
+scalars from {opt top()}, named by the value ({cmd:.} {c 45}> {cmd:_}){p_end}
 
 {p2col 5 20 24 2: Macros}{p_end}
 {synopt:{cmd:r(sources)}}the source {varlist}; with {opt source()} only{p_end}
@@ -190,6 +202,8 @@ check); with {opt source()} only{p_end}
 {p2col 5 20 24 2: Matrices}{p_end}
 {synopt:{cmd:r(decomp)}}{it:K} {c 215} 5 matrix, one row per source, columns
 {cmd:contrib share Sk Gk Rk}; with {opt source()} only{p_end}
+{synopt:{cmd:r(top)}}{it:K} {c 215} 5 matrix, one row per {it:p}, columns
+{cmd:top_pct actual_pct value_share gini_share gini_excl}; with {opt top()} only{p_end}
 
 
 {marker examples}{...}
@@ -203,37 +217,7 @@ with the survey weight applied and stores {cmd:r(gini)}, {cmd:r(N)}, and
 {phang2}{cmd:. wgini networth [aw=weight]}{p_end}
 
 {pstd}
-{bf:2. Gini computed by subgroup.} {cmd:wgini} returns one Gini for the
-sample it is given. To get one Gini per subgroup, wrap it in
-{helpb statsby}, which runs the command once for every subgroup defined by
-{cmd:by()} and collects the returned scalars into a new dataset with one
-row per subgroup. Note that {cmd:statsby, clear} replaces the data in
-memory — save your data first.{p_end}
-
-{phang2}{cmd:. statsby gini=r(gini) n=r(N), by(year agegrp) clear: wgini networth [aw=weight]}{p_end}
-{phang2}{cmd:. list year agegrp gini n}{p_end}
-
-{pstd}
-{it:Caveat.} This {it:computes} a separate Gini within each subgroup; it
-does not {it:decompose} the overall Gini into subgroups. The reason is in
-the covariance form {it:G} = 2 cov{sub:w}({it:x}, {it:F}({it:x}))/{c 956}.
-Sources enter the {it:first} argument: with
-{it:x} = {it:y}{sub:1} + ... + {it:y}{sub:K}, linearity of the covariance
-in its first argument, with {it:F}({it:x}) and {c 956} of the {it:total}
-held fixed, gives cov{sub:w}({c 931}{sub:k} {it:y_k}, {it:F}({it:x})) =
-{c 931}{sub:k} cov{sub:w}({it:y_k}, {it:F}({it:x})), so {it:G} =
-{c 931}{sub:k} 2 cov{sub:w}({it:y_k}, {it:F}({it:x}))/{c 956} exactly —
-that is what {opt source()} computes. Subgroups instead act on the
-{it:second} argument, the ranking: a household's within-group rank
-{it:F_g}({it:x}) differs from its population rank {it:F}({it:x}) whenever
-group distributions overlap, and the covariance is not separable in the
-ranking argument, so "within + between" does not add up to {it:G} — a
-residual overlap term remains. For an exact within/between subgroup
-decomposition use a generalized entropy index (e.g. Theil), for example
-with {cmd:ineqdeco} (Jenkins, SSC).{p_end}
-
-{pstd}
-{bf:3. Source decomposition.} When net worth is the sum of asset
+{bf:2. Source decomposition.} When net worth is the sum of asset
 components — debt entered as a negative variable
 ({cmd:gen negdebt = -debt}) — this splits the Gini into one additive
 contribution per component and factors each into
@@ -244,7 +228,7 @@ in {cmd:r(decomp)}.{p_end}
 {phang2}{cmd:. matrix list r(decomp)}{p_end}
 
 {pstd}
-{bf:4. Observation-level contributions — who drives the Gini?} This
+{bf:3. Observation-level contributions — who drives the Gini?} This
 answers questions like: {it:how much of measured inequality comes from
 the top 1% of earners?} {cmd:gi(gcon)} creates the variable {cmd:gcon}
 holding each observation's additive contribution to the Gini. The
@@ -276,29 +260,48 @@ Contributions are positive in {it:both} tails — for the rich both
 poor both are negative — and roughly zero near the middle.{p_end}
 
 {pstd}
-{bf:5. Recomputing the Gini without the top unit(s).} The contribution in
-{cmd:gcon} describes the observation's role {it:within the current sample};
-it is {bf:not} the amount the Gini would fall by if the observation were
-deleted, because deleting it changes the mean and every rank. To get the
-Gini {it:without} some units, rerun {cmd:wgini} on the restricted sample
-with {cmd:if}. Without the single largest household ({cmd:r(max)} from
-{cmd:summarize} is the sample maximum):{p_end}
+{bf:4. Top-share diagnostics in one line.} {opt top()} packages the recipe
+of example 3 for any list of top shares. For each {it:p} the top group is
+every observation whose weighted fractional mid-rank exceeds
+1 {c 45} {it:p}/100 (a rank cut; a tie group, sharing one mid-rank, stays
+together on one side). Reported are the top group's actual weighted
+population share, its share of the weighted total, its share of the Gini,
+and the Gini recomputed {it:without} it. The excluded Gini is
+recomputed on the remaining sample with its own mean and ranks — it is
+{bf:not} the Gini minus the Gini share, because deleting observations
+changes the mean and every rank.{p_end}
 
-{phang2}{cmd:. quietly sum networth}{p_end}
-{phang2}{cmd:. wgini networth if networth < r(max) [aw=weight]}{p_end}
-
-{pstd}
-Without the top 1%: {helpb _pctile} with the weight computes the weighted
-99th percentile, returned in {cmd:r(r1)}, and {cmd:if} keeps the households
-at or below that cutoff.{p_end}
-
-{phang2}{cmd:. _pctile networth [aw=weight], p(99)}{p_end}
-{phang2}{cmd:. wgini networth if networth <= r(r1) [aw=weight]}{p_end}
+{phang2}{cmd:. wgini networth [aw=weight], top(1 5 10)}{p_end}
+{phang2}{cmd:. matrix list r(top)}{p_end}
 
 {pstd}
-If several households tie exactly at the maximum, the first {cmd:if} drops
-all of them; to pin down one specific household, condition on its id
-instead ({cmd:... if hhid != "<top id>"}).{p_end}
+To drop one specific unit rather than a percentile group, restrict the
+sample with {cmd:if} ({cmd:... if hhid != "<top id>"}). If several
+households tie exactly at a cutoff, the whole tie group stays on the kept
+side.{p_end}
+
+{pstd}
+{bf:5. Gini by subgroup, with statsby.} {cmd:wgini} computes one set of
+results for the sample it is given. To repeat it per subgroup, use
+{helpb statsby} — generic Stata machinery that works with any command and
+is not part of {cmd:wgini}. It runs the command once per group and
+collects the returned scalars, one row per group. The {opt top()} results
+are returned as scalars ({cmd:r(gshare_1)} etc.) precisely so that
+{cmd:statsby} can collect them. Note that {cmd:statsby, clear} replaces
+the data in memory — save your data first.{p_end}
+
+{phang2}{cmd:. statsby gini=r(gini) n=r(N), by(year agegrp) clear: wgini networth [aw=weight]}{p_end}
+{phang2}{cmd:. statsby gini=r(gini) gsh=r(gshare_1) gex=r(gexcl_1), by(year) clear: wgini networth [aw=weight], top(1)}{p_end}
+
+{pstd}
+{it:Caveat.} This {it:computes} a separate Gini within each subgroup; it
+does not {it:decompose} the overall Gini into subgroups. The Gini
+decomposes exactly by income or asset source (example 2), but not by
+population subgroup: when subgroup distributions overlap,
+"within + between" does not add up to the total — a residual overlap term
+remains. For an exact within/between subgroup decomposition use a
+generalized entropy index (e.g. Theil), for example with {cmd:ineqdeco}
+(Jenkins, SSC).{p_end}
 
 
 {marker references}{...}

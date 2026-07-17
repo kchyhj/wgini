@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use wgini in published work, please cite it as below."
 title: "wgini: Weighted Gini coefficient with Lerman-Yitzhaki source decomposition"
 type: software
-version: 1.0.0
-date-released: 2026-07-16
+version: 1.1.0
+date-released: 2026-07-17
 url: "https://github.com/kchyhj/wgini"
 repository-code: "https://github.com/kchyhj/wgini"
 license-url: "https://polyformproject.org/licenses/noncommercial/1.0.0"

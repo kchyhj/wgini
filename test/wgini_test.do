@@ -170,4 +170,73 @@ quietly sum gcon
 assert abs(r(sum) - gws) < 1e-10
 di as txt "    sum(g_i) - G = " %10.2e r(sum)-`gw'
 
+*--------------------------------------------------------------------*
+di _n as res "[10] top(): matches the manual recipes"
+*--------------------------------------------------------------------*
+wgini x [aw=w], top(1 10) noprint
+matrix TP = r(decomp)   // should NOT exist; guard against name confusion
+capture matrix drop TP
+matrix TP = r(top)
+scalar Gt = r(gini)
+
+* manual recipe: the top group is defined by the weighted fractional
+* MID-RANK exceeding 1-p/100 (the documented rank cut), so build the
+* mid-rank by hand and compare
+capture drop gcon2
+wgini x [aw=w], gi(gcon2) noprint
+sort x
+gen double cw_ = sum(w)
+quietly sum w
+local Wt = r(sum)
+by x: gen double wg_ = sum(w)
+by x: gen double hi_ = cw_[_N]
+by x: replace    wg_ = wg_[_N]
+gen double F_ = (hi_ - 0.5*wg_)/`Wt'
+
+* gini_share: gi() sum over the rank-defined top 1%
+quietly sum gcon2 if F_ > 0.99
+assert reldif(100*r(sum)/Gt, TP[1,4]) < 1e-10
+
+* gini_excl: rerun wgini on the kept sample
+wgini x if F_ <= 0.99 [aw=w], noprint
+assert reldif(r(gini), TP[1,5]) < 1e-12
+
+* value share by hand
+gen double wx_ = w*x
+quietly sum wx_
+local tot = r(sum)
+quietly sum wx_ if F_ > 0.99
+assert reldif(100*r(sum)/`tot', TP[1,3]) < 1e-10
+
+* actual population share by hand
+quietly sum w if F_ > 0.99
+assert reldif(100*r(sum)/`Wt', TP[1,2]) < 1e-10
+drop cw_ wg_ hi_ F_ wx_
+di as txt "    gini_share, gini_excl, value_share, actual_pct all match the manual recipes"
+
+*--------------------------------------------------------------------*
+di _n as res "[11] top() collected by subgroup via statsby"
+*--------------------------------------------------------------------*
+* top() also returns scalars named by the p value (r(gshare_1), r(gexcl_1),
+* ...) precisely so that statsby can collect them by subgroup.
+gen byte grp2 = mod(id, 2)
+preserve
+statsby g=r(gini) gsh1=r(gshare_1) ge1=r(gexcl_1), by(grp2) clear: ///
+    wgini x [aw=w], top(1) noprint
+assert _N == 2
+assert !missing(g[1]) & !missing(gsh1[1]) & !missing(ge1[1])
+list, noobs
+restore
+
+* cross-check group 0 against a direct call. statsby stores collected
+* results as float (~7 significant digits), so compare at float precision.
+wgini x if grp2==0 [aw=w], top(1) noprint
+matrix T0 = r(top)
+preserve
+statsby gsh1=r(gshare_1), by(grp2) clear: wgini x [aw=w], top(1) noprint
+sort grp2
+assert reldif(gsh1[1], T0[1,4]) < 1e-6
+restore
+di as txt "    statsby rows reproduce direct by-group calls"
+
 di _n as res "ALL TESTS PASSED"

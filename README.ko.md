@@ -31,57 +31,18 @@ net install wgini, from("https://raw.githubusercontent.com/kchyhj/wgini/main/")
 wgini networth [aw=weight]
 ```
 
-**2. 하위 그룹별 지니 계산.** `wgini` 자체는 주어진 표본에 대해 지니
-하나를 계산합니다. *하위 그룹마다* 하나씩(여기서는 연도 × 연령대별)
-얻으려면 Stata의 `statsby`로 감쌉니다 — `statsby`는 그룹마다 명령을 한
-번씩 실행하고 반환값을 모아 그룹당 한 행짜리 새 데이터셋을 만듭니다.
-
-```stata
-statsby gini=r(gini) n=r(N), by(year agegrp) clear: ///
-    wgini networth [aw=weight]
-list year agegrp gini n
-```
-
-(`statsby ..., clear`는 메모리의 데이터를 수집 결과로 바꿔치기하므로
-원자료를 먼저 저장해 두세요.)
-
-> **주의 — 지니는 하위 그룹으로 분해되지 않습니다.** 위 패턴은 그룹
-> 안에서 지니를 따로따로 *계산*하는 것이지, 전체 지니를 그룹들로
-> *분해*하는 것이 아닙니다. 이 비대칭은 공분산 형식 자체에서 보입니다.
-> 지니를
->
-> $$G \;=\; \frac{2\,\mathrm{cov}_w\!\big(x,\,F(x)\big)}{\mu}$$
->
-> 로 쓰면, **원천**은 공분산의 *첫째* 인자로 들어갑니다.
-> $x = \sum_k y_k$이면, 공분산이 첫째 인자에 선형이고 *총계*의 순위
-> $F(x)$와 평균 $\mu$는 그대로 고정되므로
->
-> $$\mathrm{cov}_w\!\Big(\textstyle\sum_k y_k,\,F(x)\Big)
-> = \sum_k \mathrm{cov}_w\big(y_k,\,F(x)\big)
-> \quad\Longrightarrow\quad
-> G = \sum_k \frac{2\,\mathrm{cov}_w\big(y_k,\,F(x)\big)}{\mu}$$
->
-> 가 성립합니다 — 원천당 한 항씩의 정확한 항등식이고, `source()`가 하는
-> 계산이 바로 이것입니다. 반면 **하위 그룹**은 *둘째* 인자인 순위에
-> 작용합니다: 인구를 그룹 $g$로 나누면 $F(x)$가 그룹 내 순위 $F_g(x)$로
-> 바뀌는데, 그룹 분포가 겹치는 한 $F(x) \neq F_g(x)$입니다(자기 그룹
-> 안에서는 부유해도 전체에서는 가난할 수 있음). 공분산은 순위 인자에
-> 대해서는 분리되지 않으므로 $G$가 "집단 내 + 집단 간"의 합이 되지
-> 않고 겹침 잔차항이 남습니다. 집단 내/집단 간의 정확한 분해가 필요하면
-> 일반화 엔트로피 지수(예: Theil)를 쓰세요. Stata에서는 `ineqdeco`
-> (Jenkins, SSC)가 있습니다.
-
-**3. 원천 분해.** 순자산이 자산 구성요소의 합일 때(여기서는 거주주택 +
+**2. 원천 분해.** 순자산이 자산 구성요소의 합일 때(여기서는 거주주택 +
 기타 부동산 + 자동차 + 저축 + 부채를 *음수 변수*로 넣은 것, 예:
 `gen negdebt = -debt`), 지니를 구성요소별 가법 기여로 가르고 각 기여를
-점유율 × 원천 내 지니 × 지니 상관으로 인수분해합니다:
+점유율 × 원천 내 지니 × 지니 상관으로 인수분해합니다. 이 분해는 정확한
+항등식입니다 — 이유는 [방법](#방법) 참조.
 
 ```stata
 wgini networth [aw=weight], source(home other_re vehicles saving negdebt)
 matrix list r(decomp)     // contrib share Sk Gk Rk, 원천당 한 행
 ```
 
-**4. 관측 단위 기여 — 누가 지니를 만드는가?** *측정된 불평등의 몇 %가
+**3. 관측 단위 기여 — 누가 지니를 만드는가?** *측정된 불평등의 몇 %가
 상위 1% 소득자에게서 오는가?* 같은 질문에 답하는 도구입니다. `gi(gcon)`은
 각 관측치가 지니에 더하는 자기 기여를 담은 새 변수 `gcon`을 만듭니다.
 기여의 합이 정확히 `r(gini)`이므로, 어떤 관측치 집합이든 그들의 `gcon`을
@@ -115,45 +76,85 @@ list networth gcon in 1
 빈곤층은 두 인자가 모두 음수라 곱이 양수가 됩니다. 중간 부근의 관측치는
 기여가 0에 가깝습니다.
 
-**5. 상위 가구를 뺀 지니의 재계산.** `gcon`의 기여는 *현재 표본 안에서*
-그 관측치가 차지하는 역할이지, 그 관측치를 지웠을 때 지니가 줄어드는
-양이 **아닙니다** — 하나를 지우면 평균과 모든 순위가 다시 정해지기
-때문입니다. 어떤 가구들을 *뺀* 지니는 `if`로 표본을 제한해 재계산합니다:
+**4. 상위 몫 진단을 한 줄로.** `top()`은 예시 3의 레시피(그리고 그 이상)를
+임의의 상위 몫 목록에 대해 포장한 옵션입니다. 각 `p`마다 상위 집단은
+가중 분위 mid-rank가 1−p/100을 넘는 관측치 전체입니다(순위 기준 절단 —
+하나의 mid-rank를 공유하는 동점 그룹은 통째로 한쪽에 남습니다). 상위
+집단의 실제 가중 인구 비율, 총액(자산 또는
+소득) 점유율, 지니 몫, 그리고 그 집단을 *뺀* 재계산 지니를 보고합니다:
 
 ```stata
-* 최상위 1가구 제외
-quietly sum networth
-wgini networth if networth < r(max) [aw=weight]
-
-* 상위 1% 제외 (가중 99백분위 경계)
-_pctile networth [aw=weight], p(99)
-wgini networth if networth <= r(r1) [aw=weight]
+wgini networth [aw=weight], top(1 5 10)
+matrix list r(top)      // top_pct actual_pct value_share gini_share gini_excl
 ```
 
-(최대값에 정확히 동점인 가구가 여럿이면 첫 번째 `if`는 그들을 모두
-제외합니다. 연속적인 자산 자료에서는 드문 일이지만, 특정 한 가구를
-지목하려면 id로 조건을 겁니다:
-`wgini networth if hhid != "<최상위 id>" [aw=weight]`.)
+두 가지 유의점. 제외 지니는 남은 표본에서 그 표본의 평균과 순위로
+*재계산*한 값입니다 — 관측치를 지우면 평균과 모든 순위가 다시 정해지므로
+"지니 − 지니 몫"이 **아닙니다**. 그리고 백분위 집단이 아니라 특정 한
+가구를 빼려면 `if`로 직접 표본을 제한하면 됩니다
+(예: `wgini networth if hhid != "<최상위 id>" [aw=weight]`).
+
+## 하위 그룹별로 지니 계산하기
+
+`wgini`는 주어진 표본에 대해 한 벌의 결과를 냅니다. 하위 그룹마다(예:
+연도 × 연령대) 반복하려면 Stata의 `statsby`를 씁니다 — 어떤 명령과도
+결합되는 Stata의 범용 장치이지 **`wgini`에 프로그램된 기능이 아닙니다**.
+`statsby`는 그룹마다 명령을 한 번씩 실행하고 반환된 스칼라를 모아 그룹당
+한 행짜리 새 데이터셋을 만듭니다:
+
+```stata
+statsby gini=r(gini) n=r(N), by(year agegrp) clear: ///
+    wgini networth [aw=weight]
+list year agegrp gini n
+```
+
+`top()`의 결과를 스칼라로도 반환하는 것은 바로 `statsby`가 그룹별로
+수집할 수 있게 하기 위해서입니다 — 예컨대 연도별 상위 1%의 지니 몫과
+상위 1% 제외 지니:
+
+```stata
+statsby gini=r(gini) gsh=r(gshare_1) gex=r(gexcl_1), by(year) clear: ///
+    wgini networth [aw=weight], top(1)
+```
+
+(`statsby ..., clear`는 메모리의 데이터를 수집 결과로 바꿔치기하므로
+원자료를 먼저 저장해 두세요.)
+
+> **주의.** 이것은 그룹 안에서 지니를 따로따로 *계산*하는 것이지, 전체
+> 지니를 그룹들로 *분해*하는 것이 아닙니다. 지니는 소득·자산 원천으로는
+> 정확히 분해되지만(예시 2), 인구 하위 그룹으로는 분해되지 않습니다 —
+> 그룹 분포가 겹치면 "집단 내 + 집단 간"의 합이 전체와 달라지고 겹침
+> 잔차항이 남습니다. 집단 내/집단 간의 정확한 분해가 필요하면 일반화
+> 엔트로피 지수(예: Theil)를 쓰세요. Stata에서는 `ineqdeco`(Jenkins,
+> SSC)가 있습니다.
 
 ## 방법
 
 지니는 Lerman–Yitzhaki (1984) 공분산 형식으로 계산합니다.
 
-```
-G = 2 cov_w(x, F) / mu
-```
+$$G \;=\; \frac{2\,\mathrm{cov}_w\!\big(x,\,F(x)\big)}{\mu}$$
 
-`F`는 가중 분위 순위, `mu`는 가중 평균입니다. `source(y1 ... yK)`에서
-`x = y1 + ... + yK`이면 공분산의 선형성에 의해 정확한 가법 분해가 성립합니다.
+$F(x)$는 가중 분위 순위, $\mu$는 가중 평균입니다.
 
-```
-G = Σ_k 2 cov_w(y_k, F) / mu = Σ_k S_k × G_k × R_k
-```
+**원천 분해가 정확한 이유.** 원천은 공분산의 *첫째* 인자로 들어갑니다.
+$x = \sum_k y_k$이면, 공분산이 첫째 인자에 선형이고 *총계*의 순위
+$F(x)$와 평균 $\mu$는 그대로 고정되므로
 
-`S_k`는 원천의 점유율, `G_k`는 원천 자체의 지니, `R_k`는 총계 순위와의 지니
-상관입니다 (Lerman & Yitzhaki 1985; Stark, Taylor & Yitzhaki 1986). 항등식
-`Σ_k 기여 = G`를 `r(sumdev)`로 돌려주며, 테스트에서 ~1e-16 수준으로
-성립합니다.
+$$\mathrm{cov}_w\!\Big(\textstyle\sum_k y_k,\,F(x)\Big)
+= \sum_k \mathrm{cov}_w\big(y_k,\,F(x)\big)
+\quad\Longrightarrow\quad
+G = \sum_k \frac{2\,\mathrm{cov}_w\big(y_k,\,F(x)\big)}{\mu}$$
+
+가 성립합니다 — 원천당 한 항씩의 정확한 항등식입니다. 각 항은
+
+$$\frac{2\,\mathrm{cov}_w\big(y_k,\,F(x)\big)}{\mu} = S_k\,G_k\,R_k$$
+
+로 인수분해되며, $S_k$는 원천의 점유율, $G_k$는 원천 자체의 지니,
+$R_k$는 총계 순위와의 지니 상관입니다 (Lerman & Yitzhaki 1985; Stark,
+Taylor & Yitzhaki 1986). 항등식 $\sum_k \text{기여} = G$를 `r(sumdev)`로
+돌려주며, 테스트에서 ~1e-16 수준으로 성립합니다. 기여가 큰 것은 점유율이
+커서일 수도, 원천이 집중되어서($G_k$가 커서)일 수도, 원천이 전체 순위를
+따라가서($R_k$가 커서)일 수도 있습니다 — 세 인자가 이를 갈라 보여줍니다.
 
 **음수를 그대로 허용합니다 — Lerman–Yitzhaki 형식의 성질입니다.** 교과서적
 지니 구성(로렌츠 곡선, 또는 절대차 평균을 평균의 2배로 나누는 방식)은
@@ -164,7 +165,7 @@ G = Σ_k 2 cov_w(y_k, F) / mu = Σ_k S_k × G_k × R_k
 자르거나 음수 관측치를 버리지 않고 그대로 계산합니다. 한 가지 유의할 결과:
 음수가 있으면 지니가 더 이상 1에 묶이지 않고 1을 넘을 수 있습니다(문서화된
 성질이지 오류가 아님). 마찬가지로 평균이 음수인 원천(부채를 `-debt`로
-입력)은 `S_k`, `G_k`, `R_k`가 모두 음수가 되면서 그 곱이 올바른 음의 기여가
+입력)은 $S_k$, $G_k$, $R_k$가 모두 음수가 되면서 그 곱이 올바른 음의 기여가
 됩니다. 어디에서도 절대값을 취하지 않습니다.
 
 ### 동점 처리와 재현성
@@ -195,6 +196,10 @@ G = Σ_k 2 cov_w(y_k, F) / mu = Σ_k S_k × G_k × R_k
 6. **정렬 복원**: 명령이 사용자 데이터의 정렬을 바꾸지 않음.
 7. **오류 처리**: 원천의 합이 총계와 다르면 거부(r 459); 전부 0인 원천은
    기여 0, `G_k`·`R_k` 결측.
+8. **`top()` = 수동 레시피**: 지니 몫이 `gi()` 합산과, 제외 지니가 `if`
+   재실행과, 총액 점유가 직접 합산과 일치.
+9. **`statsby` 수집**: 그룹별로 수집한 `top()` 스칼라가 그룹별 직접 호출을
+   재현.
 
 ## 반환값
 
@@ -205,6 +210,8 @@ G = Σ_k 2 cov_w(y_k, F) / mu = Σ_k S_k × G_k × R_k
 | `r(decomp)` | K×5 행렬: `contrib share Sk Gk Rk` (`source()` 사용 시) |
 | `r(sumdev)` | Σ기여 − 지니, 항등식 점검 (`source()` 사용 시) |
 | `r(sources)` | 원천 varlist (`source()` 사용 시) |
+| `r(top)` | K×5 행렬: `top_pct actual_pct value_share gini_share gini_excl` (`top()` 사용 시) |
+| `r(actual_p)`, `r(vshare_p)`, `r(gshare_p)`, `r(gexcl_p)` | `top()`의 각 `p`별 스칼라 (값으로 명명, `.` → `_`) — `statsby` 수집용 |
 
 ## 참고문헌
 
@@ -225,7 +232,7 @@ G = Σ_k 2 cov_w(y_k, F) / mu = Σ_k S_k × G_k × R_k
 BibTeX·APA 형식을 제공합니다):
 
 > Kim, ChangHwan. 2026. *wgini: Weighted Gini coefficient with
-> Lerman–Yitzhaki source decomposition* (Version 1.0.0) [Stata command].
+> Lerman–Yitzhaki source decomposition* (Version 1.1.0) [Stata command].
 > https://github.com/kchyhj/wgini
 
 ## 저자

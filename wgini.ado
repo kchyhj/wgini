@@ -1,4 +1,4 @@
-*! wgini 1.0.0  Weighted Gini + Lerman-Yitzhaki source decomposition  2026-07-16
+*! wgini 1.1.0  Weighted Gini + Lerman-Yitzhaki source decomposition  2026-07-17
 *! Author: ChangHwan Kim
 *! License: PolyForm Noncommercial 1.0.0 (see LICENSE.md; noncommercial use only)
 *! Required Notice: Copyright ChangHwan Kim (https://github.com/kchyhj/wgini)
@@ -69,6 +69,12 @@
 *                    which sums to r(gini). Useful for asking what a single
 *                    household contributes, or what the Gini becomes without
 *                    a given set of units.
+*   top(numlist)     top-share diagnostics: for each p, the top group is
+*                    everyone whose weighted fractional mid-rank exceeds
+*                    1-p/100 (rank cut; a tie group stays together). Reports
+*                    the group's actual weighted population share, its share
+*                    of the weighted total, its share of the Gini (g_i sums),
+*                    and the Gini recomputed without it. r(top) (K x 5).
 *   noprint          suppress the display table
 *
 * Examples:
@@ -80,7 +86,7 @@
 program define wgini, rclass
     version 14
     syntax varname(numeric) [if] [in] [aweight pweight fweight] ///
-        [, SOURCE(varlist numeric) TOL(real 1) GI(name) noPRINT]
+        [, SOURCE(varlist numeric) TOL(real 1) GI(name) TOP(numlist >0 <100 sort) noPRINT]
 
     marksample touse
     markout `touse' `varlist'
@@ -235,6 +241,92 @@ program define wgini, rclass
         return local sources "`source'"
     }
 
+    *------------------------------------------------------------------*
+    * top-share diagnostics -- top(numlist)
+    *
+    * For each p in the list: the top group is every observation whose
+    * weighted fractional mid-rank exceeds 1 - p/100 (a rank cut, not a
+    * value-percentile cut; a tie group, sharing one mid-rank, stays
+    * together on one side). Reported for the top group:
+    *   (1) its actual weighted population share (the weighted data are
+    *       discrete, so it need not equal p exactly),
+    *   (2) its share of the weighted total of the variable,
+    *   (3) its share of the Gini (its g_i contributions over G),
+    *   (4) the Gini recomputed WITHOUT it -- with its own mean and its
+    *       own mid-ranks on the remaining sample, because dropping units
+    *       changes both; this is not G minus (3).
+    * The kept sample {F <= 1-p/100} is a prefix of the x-sorted data, so
+    * the cumulative weights and tie groups computed above carry over.
+    *------------------------------------------------------------------*
+    if "`top'" != "" {
+        * data are still sorted by (touse, x); keep it that way until done
+        tempvar gi_ wx
+        quietly gen double `gi_' = `w'*2*(`x' - `mu')*(`p' - 0.5)/(`mu'*`W') ///
+            if `touse'
+        quietly gen double `wx' = `w'*`x' if `touse'
+        quietly sum `wx' if `touse'
+        local totx = r(sum)
+
+        local ntop : word count `top'
+        tempname T
+        matrix `T' = J(`ntop', 5, .)
+        local rn2 ""
+        local k = 0
+        foreach pp of local top {
+            local ++k
+            local rn2 "`rn2' top`pp'"
+            local cut = 1 - `pp'/100
+            quietly {
+                * (1) actual weighted population share of the top group
+                tempvar wa
+                gen double `wa' = `w'*(`p' > `cut') if `touse'
+                sum `wa' if `touse'
+                local sha = r(sum)/`W'
+                * (2) share of the weighted total
+                sum `wx' if `touse' & `p' > `cut'
+                local wsh = r(sum)/`totx'
+                * (3) share of the Gini
+                sum `gi_' if `touse' & `p' > `cut'
+                local gsh = r(sum)/`G'
+                * (4) Gini without the top group (own mean, own mid-ranks;
+                *     tie groups share one mid-rank, so they stay intact)
+                sum `w' if `touse' & `p' <= `cut'
+                local W2 = r(sum)
+                sum `x' [aw=`w'] if `touse' & `p' <= `cut', meanonly
+                local mu2 = r(mean)
+                tempvar p2 t2
+                gen double `p2' = (`hi' - 0.5*`wg')/`W2' ///
+                    if `touse' & `p' <= `cut'
+                gen double `t2' = `w'*(`x' - `mu2')*(`p2' - 0.5) ///
+                    if `touse' & `p' <= `cut'
+                sum `t2' if `touse' & `p' <= `cut'
+                local ge = 2*(r(sum)/`W2')/`mu2'
+                drop `wa' `p2' `t2'
+            }
+            matrix `T'[`k',1] = `pp'
+            matrix `T'[`k',2] = 100*`sha'
+            matrix `T'[`k',3] = 100*`wsh'
+            matrix `T'[`k',4] = 100*`gsh'
+            matrix `T'[`k',5] = `ge'
+        }
+        matrix rownames `T' = `rn2'
+        matrix colnames `T' = top_pct actual_pct value_share gini_share gini_excl
+        return matrix top = `T', copy
+
+        * scalar versions, named by the p value (decimal point -> underscore),
+        * so that statsby can collect them: e.g. top(1 10) returns
+        * r(actual_1) r(vshare_1) r(gshare_1) r(gexcl_1) and ..._10.
+        local k = 0
+        foreach pp of local top {
+            local ++k
+            local sfx : subinstr local pp "." "_", all
+            return scalar actual_`sfx' = `T'[`k',2]
+            return scalar vshare_`sfx' = `T'[`k',3]
+            return scalar gshare_`sfx' = `T'[`k',4]
+            return scalar gexcl_`sfx'  = `T'[`k',5]
+        }
+    }
+
     * put the data back in the order the user had
     quietly sort `order'
 
@@ -267,6 +359,27 @@ program define wgini, rclass
                 "with the rank of `varlist'."
             local dev = `gsum' - `G'
             di as txt "Sum of contributions - Gini = " as res %10.2e `dev'
+        }
+
+        if "`top'" != "" {
+            di as txt _n "Top-share diagnostics" _n "{hline 64}"
+            di as txt %7s "top %" %10s "actual %" %13s "value share" ///
+                %13s "Gini share" %12s "Gini excl."
+            di as txt "{hline 64}"
+            local k = 0
+            foreach pp of local top {
+                local ++k
+                di as txt %7.4g `T'[`k',1] ///
+                    as res %10.2f `T'[`k',2] %12.2f `T'[`k',3] ///
+                    %13.2f `T'[`k',4] %12.4f `T'[`k',5]
+            }
+            di as txt "{hline 64}"
+            di as txt "Top group: weighted fractional rank of `varlist' above 1-p/100." _n ///
+                "actual % = weighted population share above the cutoff." _n ///
+                "value share = % of the weighted total held above the cutoff." _n ///
+                "Gini share = % of the Gini contributed above the cutoff (g_i sums)." _n ///
+                "Gini excl. = Gini recomputed without the top group (own mean and" _n ///
+                "ranks) -- not the Gini minus the Gini share."
         }
     }
 end
