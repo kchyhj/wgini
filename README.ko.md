@@ -81,19 +81,39 @@ wgini networth [aw=weight], source(home other_re vehicles saving negdebt)
 matrix list r(decomp)     // contrib share Sk Gk Rk, 원천당 한 행
 ```
 
-**4. 관측 단위 기여.** `gi(gcon)`은 각 관측치가 지니에 더하는 자기
-기여를 담은 새 변수 `gcon`을 만듭니다. 기여의 합이 정확히 `r(gini)`이므로
-`gcon/r(gini)`가 그 한 가구에 귀속되는 전체 불평등의 몫입니다.
+**4. 관측 단위 기여 — 누가 지니를 만드는가?** *측정된 불평등의 몇 %가
+상위 1% 소득자에게서 오는가?* 같은 질문에 답하는 도구입니다. `gi(gcon)`은
+각 관측치가 지니에 더하는 자기 기여를 담은 새 변수 `gcon`을 만듭니다.
+기여의 합이 정확히 `r(gini)`이므로, 어떤 관측치 집합이든 그들의 `gcon`을
+합해 지니로 나누면 그 집합이 전체 불평등에서 차지하는 몫이 나옵니다.
+
+```stata
+* 상위 1% 소득자가 지니에서 차지하는 몫
+wgini income [aw=weight], gi(gcon) noprint
+scalar G = r(gini)                    // 나중에 나눌 지니를 보관
+_pctile income [aw=weight], p(99)     // 가중 99백분위 경계
+quietly sum gcon if income > r(r1)    // 상위 1%의 기여를 합산
+display "상위 1%의 지니 몫 = " %5.3f r(sum)/G
+```
+
+같은 논리가 한 가구에도 적용됩니다. `gsort -networth`는 순자산의
+*내림차순* 정렬(마이너스 기호)이라 관측치 1번이 최상위 가구가 되고,
+`in 1`은 `list`를 그 첫 행으로 제한합니다:
 
 ```stata
 wgini networth [aw=weight], gi(gcon) noprint
 scalar G = r(gini)
-gsort -networth              // gsort: networth 의 내림차순 정렬 —
-                             // 관측치 1번이 최상위 가구가 됨
-display gcon[1]              // 그 가구의 지니 기여
-display gcon[1]/G            // 그 가구의 지니 몫
-list networth gcon in 1      // "in 1" = 첫 행만 표시
+gsort -networth
+display gcon[1]/G            // 최상위 가구의 지니 몫
+list networth gcon in 1
 ```
+
+실제 전국 자산조사 응용에서 20대 가구주 집단의 최상위 한 가구가 그 집단
+자산의 12%를 보유하며 집단 지니의 17%를 만들고 있었습니다 — 이 진단이
+잡아내려는 취약성이 바로 이런 것입니다. 기여는 *양쪽* 꼬리에서 모두
+양수라는 점에 유의하세요: 부유층은 $(x_i-\mu)>0$이고 $(F_i-\tfrac12)>0$,
+빈곤층은 두 인자가 모두 음수라 곱이 양수가 됩니다. 중간 부근의 관측치는
+기여가 0에 가깝습니다.
 
 **5. 상위 가구를 뺀 지니의 재계산.** `gcon`의 기여는 *현재 표본 안에서*
 그 관측치가 차지하는 역할이지, 그 관측치를 지웠을 때 지니가 줄어드는

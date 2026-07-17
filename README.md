@@ -88,20 +88,41 @@ wgini networth [aw=weight], source(home other_re vehicles saving negdebt)
 matrix list r(decomp)     // contrib share Sk Gk Rk, one row per source
 ```
 
-**4. Observation-level contributions.** `gi(gcon)` creates a new variable
-`gcon` holding each observation's own additive contribution to the Gini;
-the contributions sum exactly to `r(gini)`, so `gcon/r(gini)` is the share
-of overall inequality attributable to that single observation.
+**4. Observation-level contributions — who drives the Gini?** This
+answers questions like: *how much of measured inequality comes from the
+top 1% of earners?* `gi(gcon)` creates a new variable `gcon` holding each
+observation's own additive contribution to the Gini. The contributions
+sum exactly to `r(gini)`, so summing `gcon` over any set of observations
+and dividing by the Gini gives that set's share of overall inequality.
+
+```stata
+* share of the Gini attributable to the top 1% of earners
+wgini income [aw=weight], gi(gcon) noprint
+scalar G = r(gini)                    // keep the Gini for later division
+_pctile income [aw=weight], p(99)     // weighted 99th percentile cutoff
+quietly sum gcon if income > r(r1)    // add up the top 1%'s contributions
+display "top 1% share of the Gini = " %5.3f r(sum)/G
+```
+
+The same logic works for a single unit. Here `gsort -networth` sorts in
+*descending* order of net worth (the minus sign), so observation 1 is the
+richest household, and `in 1` restricts `list` to that first row:
 
 ```stata
 wgini networth [aw=weight], gi(gcon) noprint
 scalar G = r(gini)
-gsort -networth              // gsort: sort in DESCENDING order of networth,
-                             // so observation 1 is the richest household
-display gcon[1]              // its contribution to the Gini
-display gcon[1]/G            // its share of the Gini
-list networth gcon in 1      // "in 1" = show the first row only
+gsort -networth
+display gcon[1]/G            // the richest household's share of the Gini
+list networth gcon in 1
 ```
+
+In one application to a national wealth survey, the single richest
+household among 20-something householders held 12% of the group's assets
+and accounted for 17% of the group's Gini — exactly the kind of fragility
+this diagnostic is for. Note that contributions are positive in *both*
+tails: for the rich, $(x_i-\mu)>0$ and $(F_i-\tfrac12)>0$; for the poor,
+both factors are negative. Observations near the middle contribute
+roughly zero.
 
 **5. Recomputing the Gini without the top unit(s).** The contribution in
 `gcon` describes the role of an observation *within the current sample*;

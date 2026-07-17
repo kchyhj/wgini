@@ -244,19 +244,36 @@ in {cmd:r(decomp)}.{p_end}
 {phang2}{cmd:. matrix list r(decomp)}{p_end}
 
 {pstd}
-{bf:4. Observation-level contributions.} {cmd:gi(gcon)} creates the
-variable {cmd:gcon} holding each observation's additive contribution to
-the Gini; the contributions sum exactly to {cmd:r(gini)}, so
-{cmd:gcon/r(gini)} is the share of overall inequality attributable to that
-observation. {helpb gsort} with a minus sign sorts in descending order, so
-after {cmd:gsort -networth} observation 1 is the richest household, and
-{cmd:in 1} restricts {cmd:list} to that first row.{p_end}
+{bf:4. Observation-level contributions — who drives the Gini?} This
+answers questions like: {it:how much of measured inequality comes from
+the top 1% of earners?} {cmd:gi(gcon)} creates the variable {cmd:gcon}
+holding each observation's additive contribution to the Gini. The
+contributions sum exactly to {cmd:r(gini)}, so summing {cmd:gcon} over
+any set of observations and dividing by the Gini gives that set's share
+of overall inequality. For the top 1% of earners:{p_end}
+
+{phang2}{cmd:. wgini income [aw=weight], gi(gcon) noprint}{p_end}
+{phang2}{cmd:. scalar G = r(gini)}{p_end}
+{phang2}{cmd:. _pctile income [aw=weight], p(99)}{p_end}
+{phang2}{cmd:. quietly sum gcon if income > r(r1)}{p_end}
+{phang2}{cmd:. display "top 1% share of the Gini = " r(sum)/G}{p_end}
+
+{pstd}
+The same logic works for a single unit. {helpb gsort} with a minus sign
+sorts in descending order, so after {cmd:gsort -networth} observation 1
+is the richest household, and {cmd:in 1} restricts {cmd:list} to that
+first row:{p_end}
 
 {phang2}{cmd:. wgini networth [aw=weight], gi(gcon) noprint}{p_end}
 {phang2}{cmd:. scalar G = r(gini)}{p_end}
 {phang2}{cmd:. gsort -networth}{p_end}
 {phang2}{cmd:. display gcon[1]/G}{p_end}
 {phang2}{cmd:. list networth gcon in 1}{p_end}
+
+{pstd}
+Contributions are positive in {it:both} tails — for the rich both
+({it:x_i} {c 45} {c 956}) and ({it:F_i} {c 45} 0.5) are positive, for the
+poor both are negative — and roughly zero near the middle.{p_end}
 
 {pstd}
 {bf:5. Recomputing the Gini without the top unit(s).} The contribution in
