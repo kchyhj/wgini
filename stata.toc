@@ -1,4 +1,4 @@
 v 3
 d ChangHwan Kim, University of Kansas
 d Stata programs by ChangHwan Kim
-p wgini Weighted Gini coefficient with Lerman-Yitzhaki source decomposition
+p wgini wgini 1.1.0: Weighted Gini coefficient with Lerman-Yitzhaki source decomposition
