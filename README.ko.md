@@ -24,21 +24,70 @@ net install wgini, from("https://raw.githubusercontent.com/kchyhj/wgini/main/")
 
 ## 빠른 사용법
 
+**1. 한 변수의 가중 지니.** `networth`의 지니를 표본 가중치를 적용해
+계산하고, 이후에 쓸 수 있도록 `r(gini)`, `r(N)`, `r(mean)`을 남깁니다.
+
 ```stata
-* 가중 지니
 wgini networth [aw=weight]
-
-* 셀별 계산
-statsby gini=r(gini) n=r(N), by(year agegrp): wgini networth [aw=weight]
-
-* 원천 분해: 원천의 합 = 총계 변수여야 함
-wgini networth [aw=weight], source(home other_re vehicles saving negdebt)
-
-* 관측 단위 기여 (합 = 지니)
-wgini networth [aw=weight], gi(gcon) noprint
-gsort -networth
-list networth gcon in 1   // 최상위 가구의 기여는?
 ```
+
+**2. 집단별 지니.** `wgini` 자체는 주어진 표본에 대해 지니 하나를
+계산합니다. *집단마다* 하나씩(여기서는 연도 × 연령대별) 얻으려면 Stata의
+`statsby`로 감쌉니다 — `statsby`는 집단마다 명령을 한 번씩 실행하고
+반환값을 모아 집단당 한 행짜리 새 데이터셋을 만듭니다.
+
+```stata
+statsby gini=r(gini) n=r(N), by(year agegrp) clear: ///
+    wgini networth [aw=weight]
+list year agegrp gini n
+```
+
+(`statsby ..., clear`는 메모리의 데이터를 수집 결과로 바꿔치기하므로
+원자료를 먼저 저장해 두세요.)
+
+**3. 원천 분해.** 순자산이 자산 구성요소의 합일 때(여기서는 거주주택 +
+기타 부동산 + 자동차 + 저축 + 부채를 *음수 변수*로 넣은 것, 예:
+`gen negdebt = -debt`), 지니를 구성요소별 가법 기여로 가르고 각 기여를
+점유율 × 원천 내 지니 × 지니 상관으로 인수분해합니다:
+
+```stata
+wgini networth [aw=weight], source(home other_re vehicles saving negdebt)
+matrix list r(decomp)     // contrib share Sk Gk Rk, 원천당 한 행
+```
+
+**4. 관측 단위 기여.** `gi(gcon)`은 각 관측치가 지니에 더하는 자기
+기여를 담은 새 변수 `gcon`을 만듭니다. 기여의 합이 정확히 `r(gini)`이므로
+`gcon/r(gini)`가 그 한 가구에 귀속되는 전체 불평등의 몫입니다.
+
+```stata
+wgini networth [aw=weight], gi(gcon) noprint
+scalar G = r(gini)
+gsort -networth              // gsort: networth 의 내림차순 정렬 —
+                             // 관측치 1번이 최상위 가구가 됨
+display gcon[1]              // 그 가구의 지니 기여
+display gcon[1]/G            // 그 가구의 지니 몫
+list networth gcon in 1      // "in 1" = 첫 행만 표시
+```
+
+**5. 상위 가구를 뺀 지니의 재계산.** `gcon`의 기여는 *현재 표본 안에서*
+그 관측치가 차지하는 역할이지, 그 관측치를 지웠을 때 지니가 줄어드는
+양이 **아닙니다** — 하나를 지우면 평균과 모든 순위가 다시 정해지기
+때문입니다. 어떤 가구들을 *뺀* 지니는 `if`로 표본을 제한해 재계산합니다:
+
+```stata
+* 최상위 1가구 제외
+quietly sum networth
+wgini networth if networth < r(max) [aw=weight]
+
+* 상위 1% 제외 (가중 99백분위 경계)
+_pctile networth [aw=weight], p(99)
+wgini networth if networth <= r(r1) [aw=weight]
+```
+
+(최대값에 정확히 동점인 가구가 여럿이면 첫 번째 `if`는 그들을 모두
+제외합니다. 연속적인 자산 자료에서는 드문 일이지만, 특정 한 가구를
+지목하려면 id로 조건을 겁니다:
+`wgini networth if hhid != "<최상위 id>" [aw=weight]`.)
 
 ## 방법
 

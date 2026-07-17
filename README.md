@@ -26,21 +26,74 @@ or copy `wgini.ado` and `wgini.sthlp` into your personal ado directory
 
 ## Quick start
 
+**1. Weighted Gini of one variable.** Computes the Gini of `networth` with
+the survey weight applied, and leaves `r(gini)`, `r(N)`, and `r(mean)`
+behind for later use.
+
 ```stata
-* weighted Gini
 wgini networth [aw=weight]
-
-* by cell
-statsby gini=r(gini) n=r(N), by(year agegrp): wgini networth [aw=weight]
-
-* source decomposition: sources must sum to the total
-wgini networth [aw=weight], source(home other_re vehicles saving negdebt)
-
-* observation-level contributions (sum to the Gini)
-wgini networth [aw=weight], gi(gcon) noprint
-gsort -networth
-list networth gcon in 1   // what does the top household contribute?
 ```
+
+**2. Gini by group.** `wgini` itself computes one number for the sample it
+is given; to get one Gini *per group* (here, per year × age group), wrap it
+in Stata's `statsby`, which runs the command once for every group and
+collects the returned results into a new dataset with one row per group.
+
+```stata
+statsby gini=r(gini) n=r(N), by(year agegrp) clear: ///
+    wgini networth [aw=weight]
+list year agegrp gini n
+```
+
+(Note that `statsby ..., clear` replaces the data in memory with the
+collected results — save your data first.)
+
+**3. Source decomposition.** When net worth is the sum of asset components
+(here housing + other real estate + vehicles + savings + debt entered as a
+*negative* variable, e.g. `gen negdebt = -debt`), this splits the Gini into
+one additive contribution per component and factors each into
+share × own Gini × Gini correlation:
+
+```stata
+wgini networth [aw=weight], source(home other_re vehicles saving negdebt)
+matrix list r(decomp)     // contrib share Sk Gk Rk, one row per source
+```
+
+**4. Observation-level contributions.** `gi(gcon)` creates a new variable
+`gcon` holding each observation's own additive contribution to the Gini;
+the contributions sum exactly to `r(gini)`, so `gcon/r(gini)` is the share
+of overall inequality attributable to that single observation.
+
+```stata
+wgini networth [aw=weight], gi(gcon) noprint
+scalar G = r(gini)
+gsort -networth              // gsort: sort in DESCENDING order of networth,
+                             // so observation 1 is the richest household
+display gcon[1]              // its contribution to the Gini
+display gcon[1]/G            // its share of the Gini
+list networth gcon in 1      // "in 1" = show the first row only
+```
+
+**5. Recomputing the Gini without the top unit(s).** The contribution in
+`gcon` describes the role of an observation *within the current sample*;
+it is **not** what the Gini would fall by if you deleted that observation,
+because deleting it changes the mean and every rank. To get the Gini
+*without* some units, rerun `wgini` on the restricted sample with `if`:
+
+```stata
+* without the single largest household
+quietly sum networth
+wgini networth if networth < r(max) [aw=weight]
+
+* without the top 1% (weighted 99th-percentile cutoff)
+_pctile networth [aw=weight], p(99)
+wgini networth if networth <= r(r1) [aw=weight]
+```
+
+(If several households tie exactly at the maximum, the first `if` drops all
+of them; with continuous wealth data that is rarely an issue. To pin down
+one specific household, condition on its id instead:
+`wgini networth if hhid != "<top id>" [aw=weight]`.)
 
 ## Method
 

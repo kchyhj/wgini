@@ -189,19 +189,73 @@ check); with {opt source()} only{p_end}
 {marker examples}{...}
 {title:Examples}
 
-{pstd}Weighted Gini of net worth{p_end}
+{pstd}
+{bf:1. Weighted Gini of one variable.} Computes the Gini of {cmd:networth}
+with the survey weight applied and stores {cmd:r(gini)}, {cmd:r(N)}, and
+{cmd:r(mean)}.{p_end}
+
 {phang2}{cmd:. wgini networth [aw=weight]}{p_end}
 
-{pstd}By cell, with {helpb statsby}{p_end}
-{phang2}{cmd:. statsby gini=r(gini) n=r(N), by(year agegrp): wgini networth [aw=weight]}{p_end}
+{pstd}
+{bf:2. Gini by group.} {cmd:wgini} returns one Gini for the sample it is
+given. To get one Gini per group, wrap it in {helpb statsby}, which runs
+the command once for every group defined by {cmd:by()} and collects the
+returned scalars into a new dataset with one row per group. Note that
+{cmd:statsby, clear} replaces the data in memory — save your data first.{p_end}
 
-{pstd}Source decomposition (six asset sources summing to net worth){p_end}
+{phang2}{cmd:. statsby gini=r(gini) n=r(N), by(year agegrp) clear: wgini networth [aw=weight]}{p_end}
+{phang2}{cmd:. list year agegrp gini n}{p_end}
+
+{pstd}
+{bf:3. Source decomposition.} When net worth is the sum of asset
+components — debt entered as a negative variable
+({cmd:gen negdebt = -debt}) — this splits the Gini into one additive
+contribution per component and factors each into
+{it:S_k} {c 215} {it:G_k} {c 215} {it:R_k}. The full table is also returned
+in {cmd:r(decomp)}.{p_end}
+
 {phang2}{cmd:. wgini networth [aw=weight], source(home other_re other_real stockbondfund othersaving negdebt)}{p_end}
+{phang2}{cmd:. matrix list r(decomp)}{p_end}
 
-{pstd}Store the observation-level contribution, then find the top household's share{p_end}
+{pstd}
+{bf:4. Observation-level contributions.} {cmd:gi(gcon)} creates the
+variable {cmd:gcon} holding each observation's additive contribution to
+the Gini; the contributions sum exactly to {cmd:r(gini)}, so
+{cmd:gcon/r(gini)} is the share of overall inequality attributable to that
+observation. {helpb gsort} with a minus sign sorts in descending order, so
+after {cmd:gsort -networth} observation 1 is the richest household, and
+{cmd:in 1} restricts {cmd:list} to that first row.{p_end}
+
 {phang2}{cmd:. wgini networth [aw=weight], gi(gcon) noprint}{p_end}
+{phang2}{cmd:. scalar G = r(gini)}{p_end}
 {phang2}{cmd:. gsort -networth}{p_end}
+{phang2}{cmd:. display gcon[1]/G}{p_end}
 {phang2}{cmd:. list networth gcon in 1}{p_end}
+
+{pstd}
+{bf:5. Recomputing the Gini without the top unit(s).} The contribution in
+{cmd:gcon} describes the observation's role {it:within the current sample};
+it is {bf:not} the amount the Gini would fall by if the observation were
+deleted, because deleting it changes the mean and every rank. To get the
+Gini {it:without} some units, rerun {cmd:wgini} on the restricted sample
+with {cmd:if}. Without the single largest household ({cmd:r(max)} from
+{cmd:summarize} is the sample maximum):{p_end}
+
+{phang2}{cmd:. quietly sum networth}{p_end}
+{phang2}{cmd:. wgini networth if networth < r(max) [aw=weight]}{p_end}
+
+{pstd}
+Without the top 1%: {helpb _pctile} with the weight computes the weighted
+99th percentile, returned in {cmd:r(r1)}, and {cmd:if} keeps the households
+at or below that cutoff.{p_end}
+
+{phang2}{cmd:. _pctile networth [aw=weight], p(99)}{p_end}
+{phang2}{cmd:. wgini networth if networth <= r(r1) [aw=weight]}{p_end}
+
+{pstd}
+If several households tie exactly at the maximum, the first {cmd:if} drops
+all of them; to pin down one specific household, condition on its id
+instead ({cmd:... if hhid != "<top id>"}).{p_end}
 
 
 {marker references}{...}
