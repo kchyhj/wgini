@@ -46,60 +46,52 @@ wgini networth [aw=weight], source(home other_re vehicles saving negdebt)
 matrix list r(decomp)     // contrib share Sk Gk Rk, one row per source
 ```
 
-**3. Observation-level contributions — who drives the Gini?** This
-answers questions like: *how much of measured inequality comes from the
-top 1% of earners?* `gi(gcon)` creates a new variable `gcon` holding each
-observation's own additive contribution to the Gini. The contributions
-sum exactly to `r(gini)`, so summing `gcon` over any set of observations
-and dividing by the Gini gives that set's share of overall inequality.
+**3. Top-share diagnostics — who drives the Gini?** This answers
+questions like: *how much of measured inequality comes from the top 1%?
+And what would the Gini be without them?* One option does it for any list
+of top shares:
 
 ```stata
-* share of the Gini attributable to the top 1% of earners
-wgini income [aw=weight], gi(gcon) noprint
-scalar G = r(gini)                    // keep the Gini for later division
-_pctile income [aw=weight], p(99)     // weighted 99th percentile cutoff
-quietly sum gcon if income > r(r1)    // add up the top 1%'s contributions
-display "top 1% share of the Gini = " %5.3f r(sum)/G
+wgini networth [aw=weight], top(1 5 10)
+matrix list r(top)
 ```
 
-The same logic works for a single unit. Here `gsort -networth` sorts in
-*descending* order of net worth (the minus sign), so observation 1 is the
-richest household, and `in 1` restricts `list` to that first row:
+For each `p` the command reports one row with four numbers:
+
+| column | meaning |
+|---|---|
+| `actual_pct` | the top group's actual weighted population share. The top group is everyone whose weighted fractional mid-rank exceeds 1−p/100 (a rank cut); because the weighted data are discrete and a tie group — sharing one mid-rank — stays together on one side, this can differ slightly from `p`. |
+| `value_share` | the share of total wealth (or income) held by the top group. |
+| `gini_share` | the share of the Gini contributed by the top group: each observation has an additive contribution $g_i$ that sums exactly to the Gini, and this column sums the top group's $g_i$ and divides by $G$. |
+| `gini_excl` | the Gini *recomputed without* the top group, on the remaining sample with its own mean and its own ranks. |
+
+Reading `value_share` against `gini_share` shows how disproportionate the
+top is: in one application to a national wealth survey, the richest
+household among 20-something householders held 12% of the group's assets
+but produced 17% of the group's Gini. Comparing `gini_excl` to the full
+Gini shows how much of measured inequality hinges on a thin top slice.
+
+Two warnings. `gini_excl` is **not** the Gini minus `gini_share`:
+deleting observations changes the mean and every rank, so the exclusion
+is a genuine recomputation. And contributions are positive in *both*
+tails — for the rich, $(x_i-\mu)>0$ and $(F_i-\tfrac12)>0$; for the poor,
+both factors are negative — so the *bottom* 1% also contributes
+positively to the Gini; `top()` looks at the top by construction.
+
+**4. Custom sets beyond top shares.** When the group of interest is not
+a top share — one specific household, a region, an occupation — `gi()`
+stores each observation's contribution $g_i$ as a variable, and the sum
+over any set divided by `r(gini)` is that set's share of the Gini. For
+the single richest household:
 
 ```stata
 wgini networth [aw=weight], gi(gcon) noprint
 scalar G = r(gini)
-gsort -networth
-display gcon[1]/G            // the richest household's share of the Gini
-list networth gcon in 1
+gsort -networth              // descending sort: observation 1 is the top
+display gcon[1]/G            // its share of the Gini
 ```
 
-In one application to a national wealth survey, the single richest
-household among 20-something householders held 12% of the group's assets
-and accounted for 17% of the group's Gini — exactly the kind of fragility
-this diagnostic is for. Note that contributions are positive in *both*
-tails: for the rich, $(x_i-\mu)>0$ and $(F_i-\tfrac12)>0$; for the poor,
-both factors are negative. Observations near the middle contribute
-roughly zero.
-
-**4. Top-share diagnostics in one line.** `top()` packages the recipe of
-example 3 — and more — for any list of top shares. For each `p` the top group is everyone whose
-weighted fractional mid-rank exceeds 1−p/100 (a rank cut — a tie group,
-sharing one mid-rank, stays together on one side), and it reports the
-top group's actual
-weighted population share, its share of total wealth (or income), its
-share of the Gini, and the Gini recomputed *without* it:
-
-```stata
-wgini networth [aw=weight], top(1 5 10)
-matrix list r(top)      // top_pct actual_pct value_share gini_share gini_excl
-```
-
-Two things to note. The excluded Gini is *recomputed* on the remaining
-sample with its own mean and ranks — it is **not** the Gini minus the
-Gini share, because deleting observations changes the mean and every
-rank. And to drop one specific unit rather than a percentile group,
-restrict the sample yourself with `if`
+To *exclude* an arbitrary set, restrict the sample with `if`
 (e.g. `wgini networth if hhid != "<top id>" [aw=weight]`).
 
 ## Computing the Gini by subgroup
