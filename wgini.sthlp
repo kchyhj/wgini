@@ -197,14 +197,34 @@ with the survey weight applied and stores {cmd:r(gini)}, {cmd:r(N)}, and
 {phang2}{cmd:. wgini networth [aw=weight]}{p_end}
 
 {pstd}
-{bf:2. Gini by group.} {cmd:wgini} returns one Gini for the sample it is
-given. To get one Gini per group, wrap it in {helpb statsby}, which runs
-the command once for every group defined by {cmd:by()} and collects the
-returned scalars into a new dataset with one row per group. Note that
-{cmd:statsby, clear} replaces the data in memory — save your data first.{p_end}
+{bf:2. Gini computed by subgroup.} {cmd:wgini} returns one Gini for the
+sample it is given. To get one Gini per subgroup, wrap it in
+{helpb statsby}, which runs the command once for every subgroup defined by
+{cmd:by()} and collects the returned scalars into a new dataset with one
+row per subgroup. Note that {cmd:statsby, clear} replaces the data in
+memory — save your data first.{p_end}
 
 {phang2}{cmd:. statsby gini=r(gini) n=r(N), by(year agegrp) clear: wgini networth [aw=weight]}{p_end}
 {phang2}{cmd:. list year agegrp gini n}{p_end}
+
+{pstd}
+{it:Caveat.} This {it:computes} a separate Gini within each subgroup; it
+does not {it:decompose} the overall Gini into subgroups. The reason is in
+the covariance form {it:G} = 2 cov{sub:w}({it:x}, {it:F}({it:x}))/{c 956}.
+Sources enter the {it:first} argument: with
+{it:x} = {it:y}{sub:1} + ... + {it:y}{sub:K}, linearity of the covariance
+in its first argument, with {it:F}({it:x}) and {c 956} of the {it:total}
+held fixed, gives cov{sub:w}({c 931}{sub:k} {it:y_k}, {it:F}({it:x})) =
+{c 931}{sub:k} cov{sub:w}({it:y_k}, {it:F}({it:x})), so {it:G} =
+{c 931}{sub:k} 2 cov{sub:w}({it:y_k}, {it:F}({it:x}))/{c 956} exactly —
+that is what {opt source()} computes. Subgroups instead act on the
+{it:second} argument, the ranking: a household's within-group rank
+{it:F_g}({it:x}) differs from its population rank {it:F}({it:x}) whenever
+group distributions overlap, and the covariance is not separable in the
+ranking argument, so "within + between" does not add up to {it:G} — a
+residual overlap term remains. For an exact within/between subgroup
+decomposition use a generalized entropy index (e.g. Theil), for example
+with {cmd:ineqdeco} (Jenkins, SSC).{p_end}
 
 {pstd}
 {bf:3. Source decomposition.} When net worth is the sum of asset

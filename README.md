@@ -34,10 +34,11 @@ behind for later use.
 wgini networth [aw=weight]
 ```
 
-**2. Gini by group.** `wgini` itself computes one number for the sample it
-is given; to get one Gini *per group* (here, per year × age group), wrap it
-in Stata's `statsby`, which runs the command once for every group and
-collects the returned results into a new dataset with one row per group.
+**2. Gini computed by subgroup.** `wgini` itself computes one number for
+the sample it is given; to get one Gini *per subgroup* (here, per year ×
+age group), wrap it in Stata's `statsby`, which runs the command once for
+every subgroup and collects the returned results into a new dataset with
+one row per subgroup.
 
 ```stata
 statsby gini=r(gini) n=r(N), by(year agegrp) clear: ///
@@ -47,6 +48,34 @@ list year agegrp gini n
 
 (Note that `statsby ..., clear` replaces the data in memory with the
 collected results — save your data first.)
+
+> **Caveat — the Gini does not decompose by subgroup.** This pattern
+> *computes* a separate Gini within each subgroup; it does not *decompose*
+> the overall Gini into those subgroups. The asymmetry is visible in the
+> covariance form itself. Write the Gini as
+>
+> $$G \;=\; \frac{2\,\mathrm{cov}_w\!\big(x,\,F(x)\big)}{\mu}.$$
+>
+> **Sources** enter through the *first* argument of the covariance. If
+> $x = \sum_k y_k$, then because the covariance is linear in its first
+> argument while $F(x)$ and $\mu$ — the ranking and the mean of the
+> *total* — stay fixed,
+>
+> $$\mathrm{cov}_w\!\Big(\textstyle\sum_k y_k,\,F(x)\Big)
+> = \sum_k \mathrm{cov}_w\big(y_k,\,F(x)\big)
+> \quad\Longrightarrow\quad
+> G = \sum_k \frac{2\,\mathrm{cov}_w\big(y_k,\,F(x)\big)}{\mu},$$
+>
+> an exact identity with one term per source — this is what `source()`
+> computes. **Subgroups** instead act on the *second* argument, the
+> ranking: splitting the population into groups $g$ replaces $F(x)$ with
+> the within-group ranks $F_g(x)$, and $F(x) \neq F_g(x)$ whenever group
+> distributions overlap (a household can be rich within its group but poor
+> in the population). Since the covariance is *not* separable in its
+> ranking argument, $G$ is not the sum of within-group and between-group
+> terms — a residual overlap term remains. If you need an exact
+> within/between subgroup decomposition, use a generalized entropy index
+> (e.g. Theil) instead, for example with `ineqdeco` (Jenkins, SSC).
 
 **3. Source decomposition.** When net worth is the sum of asset components
 (here housing + other real estate + vehicles + savings + debt entered as a
