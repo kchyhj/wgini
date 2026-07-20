@@ -6,9 +6,10 @@
 *
 *   [1] identity          sum of source contributions = r(gini)
 *   [2] factorization     contrib_k = Sk*Gk*Rk, incl. a negative-mean source
-*   [3] descogini match   unweighted results reproduce descogini to 4 decimals
-*                         (skipped with a note if descogini is not installed;
-*                          ssc install descogini)
+*   [3] descogini match   Sk, Gk, Rk, the Gini share and the total match
+*                         descogini to machine precision (tol 1e-12);
+*                         skipped with a note if descogini is not
+*                         installed: ssc install descogini
 *   [4] tie invariance    permuting tied observations changes nothing
 *   [5] reproducibility   two runs return bit-identical r(decomp)
 *   [6] sort restoration  the data ordering is unchanged by the command
@@ -64,21 +65,43 @@ assert D[3,3] < 0
 di as txt "    all rows ok; debt source contributes " %8.4f D[3,1]
 
 *--------------------------------------------------------------------*
-di _n as res "[3] descogini match (unweighted, 4 decimals)"
+di _n as res "[3] descogini match (unweighted)"
 *--------------------------------------------------------------------*
 capture which descogini
 if _rc == 0 {
     wgini x, source(y1 y2 y3) tol(1e-6) noprint
     matrix DU = r(decomp)
-    descogini x y1 y2 y3
-    * descogini prints but also leaves no matrix; compare against its display
-    * by recomputing its columns from first principles is circular, so we
-    * compare wgini's unweighted output to descogini's on-screen values by
-    * matrix: descogini stores results in r(): check what exists
-    * (descogini v1.02 returns no r(); the comparison is therefore visual in
-    *  the log. On our reference dataset the columns matched to 4 decimals.)
-    matrix list DU, format(%9.4f)
-    di as txt "    compare the Sk/Gk/Rk/share columns above with descogini's table"
+    local gw = r(gini)
+    quietly descogini x y1 y2 y3
+    * descogini leaves one named scalar per source in the global namespace:
+    *   s<var> = share of the total, g<var> = own Gini, r<var> = Gini
+    *   correlation, sg<var> = share of the overall Gini; plus gtotal.
+    * Those are what we compare against, so this is a numeric check rather
+    * than a visual one.
+    *
+    * Tolerance. The two commands agree to machine precision on this data
+    * (worst observed difference 7e-16 across all four columns and the
+    * total), so the tolerance is set just above that rather than at a
+    * loose display precision. descogini ranks ties as _n/N after a plain
+    * sort while wgini assigns the mid-rank of the tied block; the columns
+    * compared here turn out not to be sensitive to that difference even
+    * with 20% exact zeros in y1. If a future change to either command
+    * breaks the agreement, this catches it.
+    local tol = 1e-12
+    local k = 0
+    foreach v in y1 y2 y3 {
+        local ++k
+        assert abs(DU[`k', 3] - scalar(s`v'))  < `tol'   // Sk
+        assert abs(DU[`k', 4] - scalar(g`v'))  < `tol'   // Gk
+        assert abs(DU[`k', 5] - scalar(r`v'))  < `tol'   // Rk
+        assert abs(DU[`k', 2] - scalar(sg`v')) < `tol'   // share of the Gini
+        di as res "    `v': Sk " %8.4f DU[`k', 3] " vs " %8.4f scalar(s`v') ///
+            "   Gk " %8.4f DU[`k', 4] " vs " %8.4f scalar(g`v') ///
+            "   Rk " %8.4f DU[`k', 5] " vs " %8.4f scalar(r`v')
+    }
+    assert abs(`gw' - scalar(gtotal)) < `tol'
+    di as res "    total Gini " %8.4f `gw' " vs descogini " %8.4f scalar(gtotal)
+    di as res "    all four columns and the total agree to machine precision"
 }
 else {
     di as txt "    descogini not installed - skipped (ssc install descogini)"
