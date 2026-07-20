@@ -51,7 +51,9 @@ the sources sum to {varname}; default {cmd:tol(1)}; {cmd:tol(0)} skips it{p_end}
 
 {pstd}
 {cmd:wgini} computes the Gini coefficient of {varname} using the
-Lerman-Yitzhaki (1984, 1989) covariance form, which admits sampling or
+covariance form of {help wgini##LY1984:Lerman and Yitzhaki (1984)},
+G = 2 cov(x, F(x)) / mu, applied to individual records with weights as in
+{help wgini##LY1989:Lerman and Yitzhaki (1989)}, which admits sampling or
 population weights directly. The variable may take negative values (for
 example net worth, assets minus debt): unlike the Lorenz-curve or
 mean-absolute-difference constructions, which implicitly assume
@@ -306,14 +308,21 @@ generalized entropy index (e.g. Theil), for example with {cmd:ineqdeco}
 {marker references}{...}
 {title:References}
 
+{marker LY1984}{...}
 {phang}
 Lerman, R. I., and S. Yitzhaki. 1984. A note on the calculation and
 interpretation of the Gini index. {it:Economics Letters} 15: 363-368.
 
+{marker LY1985}{...}
 {phang}
 Lerman, R. I., and S. Yitzhaki. 1985. Income inequality effects by income
 source: A new approach and applications to the United States.
 {it:Review of Economics and Statistics} 67: 151-156.
+
+{marker LY1989}{...}
+{phang}
+Lerman, R. I., and S. Yitzhaki. 1989. Improving the accuracy of estimates of
+Gini coefficients. {it:Journal of Econometrics} 42: 43-47.
 
 {phang}
 Lopez-Feldman, A. 2006. Decomposing inequality and obtaining marginal effects.

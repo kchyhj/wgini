@@ -213,6 +213,8 @@ Taylor & Yitzhaki 1986). 항등식 $\sum_k \text{기여} = G$를 `r(sumdev)`로
 - Lerman, R. I., and S. Yitzhaki. 1985. Income inequality effects by income
   source: A new approach and applications to the United States. *Review of
   Economics and Statistics* 67: 151–156.
+- Lerman, R. I., and S. Yitzhaki. 1989. Improving the accuracy of estimates of
+  Gini coefficients. *Journal of Econometrics* 42: 43–47.
 - López-Feldman, A. 2006. Decomposing inequality and obtaining marginal
   effects. *Stata Journal* 6: 106–111.
 - Stark, O., J. E. Taylor, and S. Yitzhaki. 1986. Remittances and inequality.

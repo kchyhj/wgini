@@ -5,7 +5,10 @@
 *! Drafted with the assistance of Claude (Anthropic) under the author's direction;
 *! design and validation by the author. See README.md for the full disclosure.
 *----------------------------------------------------------------------*
-* Weighted Gini via the Lerman-Yitzhaki covariance formula:
+* Weighted Gini via the covariance formula of Lerman and Yitzhaki (1984,
+* Economics Letters), applied to individual weighted records as in Lerman
+* and Yitzhaki (1989, Journal of Econometrics). The source decomposition
+* below is Lerman and Yitzhaki (1985, Review of Economics and Statistics):
 *     G = 2 * cov_w(x, F) / mean_w(x)
 * where F is the weighted fractional rank
 *     p_i = (running weight - 0.5*w_i) / W ,   W = total weight.
